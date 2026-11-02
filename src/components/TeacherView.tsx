@@ -9,7 +9,10 @@ import {
   Printer, 
   FileSpreadsheet, 
   ShieldCheck, 
-  AlertCircle 
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { exportTeacherToExcel } from '../utils/exportUtils';
 import { KopSurat } from './KopSurat';
@@ -60,6 +63,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       t.name.toLowerCase().includes(filterQuery.toLowerCase())
     );
   }, [allTeachers, filterQuery]);
+
+  const currentTeacherIndex = useMemo(() => {
+    return allTeachers.findIndex((t) => t.name === selectedTeacher);
+  }, [allTeachers, selectedTeacher]);
+
+  const handlePrevTeacher = () => {
+    if (allTeachers.length === 0) return;
+    const newIdx = (currentTeacherIndex - 1 + allTeachers.length) % allTeachers.length;
+    setSelectedTeacher(allTeachers[newIdx].name);
+  };
+
+  const handleNextTeacher = () => {
+    if (allTeachers.length === 0) return;
+    const newIdx = (currentTeacherIndex + 1) % allTeachers.length;
+    setSelectedTeacher(allTeachers[newIdx].name);
+  };
 
   // Extract assignments for selected teacher
   const teacherAssignments = useMemo(() => {
@@ -114,7 +133,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <span>Portal Guru & Pengawas SAS SMAN 2 Pasuruan</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Pilih nama guru untuk melihat rincian jadwal mengawas dan menguji
+              Pilih nama guru dari dropdown untuk melihat rincian jadwal mengawas dan menguji
             </p>
           </div>
 
@@ -139,41 +158,99 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           </div>
         </div>
 
-        {/* Search & Teacher Pill Selectors */}
-        <div className="space-y-2">
-          <div className="relative max-w-md">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Cari nama guru..."
-              className="w-full pl-8.5 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white"
-            />
+        {/* Search & Teacher Dropdown Selector */}
+        <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+            {/* Primary Dropdown */}
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="teacher-dropdown" className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Pilih Nama Guru / Pengawas:</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {currentTeacherIndex >= 0 ? `${currentTeacherIndex + 1} dari ${allTeachers.length} Guru` : `${allTeachers.length} Guru Terdaftar`}
+                </span>
+              </div>
+              <div className="relative">
+                <select
+                  id="teacher-dropdown"
+                  value={selectedTeacher}
+                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                  className="w-full pl-3.5 pr-10 py-2.5 text-xs font-bold text-blue-950 bg-white border-2 border-blue-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs appearance-none cursor-pointer"
+                >
+                  {matchingTeachers.map((t, idx) => (
+                    <option key={t.name} value={t.name}>
+                      {idx + 1}. {t.name} — ({t.count} Sesi Pengawasan)
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-blue-700 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Quick Filter Search */}
+            <div className="sm:w-72">
+              <label className="text-xs font-bold text-slate-600 mb-1.5 block">
+                Cari Nama di Daftar:
+              </label>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterQuery(val);
+                    if (val.trim()) {
+                      const found = allTeachers.find((t) => t.name.toLowerCase().includes(val.toLowerCase()));
+                      if (found) setSelectedTeacher(found.name);
+                    }
+                  }}
+                  placeholder="Ketik nama untuk memfilter..."
+                  className="w-full pl-8.5 pr-8 py-2.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-xs"
+                />
+                {filterQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs px-1"
+                    title="Hapus pencarian"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Stepper Navigation */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handlePrevTeacher}
+                className="p-2.5 bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-xl shadow-xs transition-all"
+                title="Guru Sebelumnya"
+                aria-label="Guru Sebelumnya"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextTeacher}
+                className="p-2.5 bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-xl shadow-xs transition-all"
+                title="Guru Berikutnya"
+                aria-label="Guru Berikutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="max-h-36 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200 flex flex-wrap gap-1.5">
-            {matchingTeachers.map((t) => {
-              const isSelected = selectedTeacher === t.name;
-              return (
-                <button
-                  key={t.name}
-                  type="button"
-                  onClick={() => setSelectedTeacher(t.name)}
-                  className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
-                    isSelected
-                      ? 'bg-blue-700 text-white font-semibold shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
-                  }`}
-                >
-                  <span>{t.name}</span>
-                  <span className={`ml-1.5 text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                    ({t.count}x)
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {filterQuery && matchingTeachers.length < allTeachers.length && (
+            <p className="text-[11px] text-blue-700 font-medium">
+              Menampilkan {matchingTeachers.length} nama guru yang cocok dengan kata kunci &ldquo;{filterQuery}&rdquo;.
+            </p>
+          )}
         </div>
 
         {/* Teacher Overview Metrics */}
@@ -220,17 +297,17 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         />
 
         {/* Schedule Table */}
-        <div className="overflow-x-auto border border-slate-300 rounded-lg my-4">
-          <table className="w-full text-left border-collapse border border-slate-300 text-xs">
+        <div className="border border-slate-300 rounded-lg my-3.5 overflow-hidden">
+          <table className="w-full text-left border-collapse border border-slate-300 text-xs table-fixed">
             <thead>
               <tr className="bg-slate-900 text-white font-bold text-[11px] uppercase tracking-wider">
-                <th className="px-3 py-2.5 border-r border-slate-700 text-center w-12">No</th>
-                <th className="px-4 py-2.5 border-r border-slate-700 min-w-[150px]">Hari & Tanggal</th>
-                <th className="px-3 py-2.5 border-r border-slate-700 w-28">Sesi</th>
-                <th className="px-3 py-2.5 border-r border-slate-700 w-32 font-mono">Waktu</th>
-                <th className="px-3 py-2.5 border-r border-slate-700 text-center w-24">Kelas</th>
-                <th className="px-4 py-2.5 border-r border-slate-700 min-w-[200px]">Mata Pelajaran</th>
-                <th className="px-3 py-2.5 text-center w-28">Tanda Tangan</th>
+                <th className="px-1.5 py-2 border-r border-slate-700 text-center w-[6%]">No</th>
+                <th className="px-2.5 py-2 border-r border-slate-700 w-[22%]">Hari & Tanggal</th>
+                <th className="px-1.5 py-2 border-r border-slate-700 text-center w-[10%]">Sesi</th>
+                <th className="px-2 py-2 border-r border-slate-700 text-center w-[15%] font-mono">Waktu</th>
+                <th className="px-1.5 py-2 border-r border-slate-700 text-center w-[10%]">Kelas</th>
+                <th className="px-2.5 py-2 border-r border-slate-700 w-[23%]">Mata Pelajaran</th>
+                <th className="px-2 py-2 text-center w-[14%]">Paraf</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -248,25 +325,25 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       key={`${item.slot.id}-${item.className}`}
                       className={`${isEven ? 'bg-slate-50/70' : 'bg-white'} hover:bg-blue-50/30 transition-colors`}
                     >
-                      <td className="px-3 py-2.5 border-r border-slate-300 text-center font-bold text-slate-800">
+                      <td className="px-1.5 py-1.5 border-r border-slate-300 text-center font-bold text-slate-800 text-[11px]">
                         {idx + 1}
                       </td>
-                      <td className="px-4 py-2.5 border-r border-slate-300 font-semibold text-slate-900">
+                      <td className="px-2.5 py-1.5 border-r border-slate-300 font-semibold text-slate-900 text-[11px] break-words leading-snug">
                         {item.slot.dayAndDate}
                       </td>
-                      <td className="px-3 py-2.5 border-r border-slate-300 text-slate-700">
+                      <td className="px-1.5 py-1.5 border-r border-slate-300 text-center text-slate-700 text-[11px]">
                         {item.slot.session}
                       </td>
-                      <td className="px-3 py-2.5 border-r border-slate-300 font-mono text-slate-900 font-semibold">
+                      <td className="px-2 py-1.5 border-r border-slate-300 text-center font-mono text-slate-900 font-semibold text-[11px]">
                         {item.slot.time}
                       </td>
-                      <td className="px-3 py-2.5 border-r border-slate-300 text-center font-extrabold text-blue-900">
+                      <td className="px-1.5 py-1.5 border-r border-slate-300 text-center font-extrabold text-blue-900 text-[11px]">
                         {item.className}
                       </td>
-                      <td className="px-4 py-2.5 border-r border-slate-300 font-medium text-slate-900">
+                      <td className="px-2.5 py-1.5 border-r border-slate-300 font-medium text-slate-900 text-[11.5px] break-words leading-snug">
                         {item.subject}
                       </td>
-                      <td className="px-3 py-2.5 text-center text-slate-400">
+                      <td className="px-2 py-1.5 text-center text-slate-400 text-[10px]">
                         .................
                       </td>
                     </tr>
@@ -278,24 +355,32 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         </div>
 
         {/* Footer info & signoff */}
-        <div className="mt-8 pt-4 border-t border-slate-300 grid grid-cols-2 gap-8 text-xs text-slate-800">
-          <div className="text-center">
-            <p className="text-[11px] text-slate-500 mb-1">Guru Pengawas yang bersangkutan,</p>
+        <div className="mt-6 pt-3 border-t border-slate-300 grid grid-cols-2 gap-6 text-xs text-slate-800">
+          <div className="text-center px-2">
+            <p className="text-[11px] text-slate-500 mb-0.5">Guru Pengawas yang bersangkutan,</p>
             <div className="h-16 flex items-center justify-center">
               <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
             </div>
-            <p className="font-bold text-slate-900 underline">{selectedTeacher}</p>
-            <p className="text-[10px] text-slate-500">NIP. Guru Pengampu</p>
+            <p className="font-bold text-slate-900 underline text-[11px]">{selectedTeacher}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">NIP. Guru Pengampu</p>
           </div>
 
-          <div className="text-center">
-            <p className="text-[11px] text-slate-500 mb-1">Pasuruan, 23 November 2026</p>
-            <p className="font-bold text-slate-900">Ketua Panitia SAS 2026/2027</p>
-            <div className="h-16 flex items-center justify-center">
-              <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
+          <div className="text-center relative px-2">
+            <p className="text-[11px] text-slate-500 mb-0.5">{schoolInfo.signPlaceAndDate || 'Pasuruan, 23 November 2026'}</p>
+            <p className="font-bold text-slate-900 leading-tight">{schoolInfo.committeeTitle || 'Ketua Panitia SAS 2026/2027'}</p>
+            <div className="h-16 flex items-center justify-center relative my-0.5">
+              {schoolInfo.committeeSignatureImage ? (
+                <img
+                  src={schoolInfo.committeeSignatureImage}
+                  alt="TTD Ketua Panitia"
+                  className="h-14 max-w-[130px] object-contain relative z-10"
+                />
+              ) : (
+                <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
+              )}
             </div>
-            <p className="font-bold text-slate-900 underline">{schoolInfo.committeeName}</p>
-            <p className="text-[10px] text-slate-500">NIP. {schoolInfo.committeeNip}</p>
+            <p className="font-bold text-slate-900 underline text-[11px] leading-tight">{schoolInfo.committeeName}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">NIP. {schoolInfo.committeeNip}</p>
           </div>
         </div>
       </div>

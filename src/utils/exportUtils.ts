@@ -172,6 +172,7 @@ export async function downloadElementAsPDF(
   const element = document.getElementById(elementId);
   if (!element) return false;
 
+  let container: HTMLDivElement | null = null;
   try {
     let format: string | [number, number] = 'a4';
 
@@ -184,7 +185,55 @@ export async function downloadElementAsPDF(
       format = 'a4';
     }
 
-    const imgData = await toPng(element, {
+    const isLandscape = orientation === 'landscape';
+    // Target standardized staging widths:
+    // Portrait A4 / F4: 800px width (crisp print resolution without clipping)
+    // Landscape A4 / F4: 1120px
+    // Landscape A3: 1600px
+    const targetWidth = paperSize === 'a3' ? 1600 : isLandscape ? 1120 : 800;
+
+    // Clone element to prevent screen size / responsive layout interference
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.id = `${elementId}-print-staging`;
+    clone.style.width = `${targetWidth}px`;
+    clone.style.minWidth = `${targetWidth}px`;
+    clone.style.maxWidth = `${targetWidth}px`;
+    clone.style.margin = '0';
+    clone.style.boxShadow = 'none';
+    clone.style.borderRadius = '0';
+    clone.style.border = 'none';
+    clone.style.padding = paperSize === 'f4' ? '28px 32px' : '20px 24px';
+    clone.style.backgroundColor = '#ffffff';
+
+    // Remove any horizontal overflow restriction or scrollbars in clone
+    const overflowNodes = clone.querySelectorAll('.overflow-x-auto, .overflow-hidden, .overflow-y-auto');
+    overflowNodes.forEach((node) => {
+      (node as HTMLElement).style.overflow = 'visible';
+      (node as HTMLElement).style.maxWidth = '100%';
+    });
+
+    // Ensure all tables in clone are fixed layout and 100% width
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((t) => {
+      t.style.width = '100%';
+      t.style.tableLayout = 'fixed';
+    });
+
+    // Mount off-screen
+    container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-99999px';
+    container.style.top = '0';
+    container.style.width = `${targetWidth}px`;
+    container.style.zIndex = '-99999';
+    container.style.backgroundColor = '#ffffff';
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    // Wait a brief tick for DOM and images to settle
+    await new Promise((r) => setTimeout(r, 60));
+
+    const imgData = await toPng(clone, {
       quality: 0.98,
       pixelRatio: 2,
       backgroundColor: '#ffffff',
@@ -208,23 +257,41 @@ export async function downloadElementAsPDF(
     const imgProps = pdf.getImageProperties(imgData);
     const imgRatio = imgProps.width / imgProps.height;
 
-    let renderWidth = pdfWidth - 12; // 6mm margin
+    // Side margins in mm
+    const marginX = paperSize === 'f4' ? 10 : 8;
+    const marginY = paperSize === 'f4' ? 10 : 8;
+    const maxPrintWidth = pdfWidth - marginX * 2;
+    const maxPrintHeight = pdfHeight - marginY * 2;
+
+    let renderWidth = maxPrintWidth;
     let renderHeight = renderWidth / imgRatio;
 
-    if (renderHeight > pdfHeight - 12) {
-      renderHeight = pdfHeight - 12;
+    // If slightly taller than available page height, scale down to fit cleanly on 1 page
+    if (renderHeight > maxPrintHeight && renderHeight <= maxPrintHeight * 1.15) {
+      renderHeight = maxPrintHeight;
       renderWidth = renderHeight * imgRatio;
     }
 
-    const marginX = (pdfWidth - renderWidth) / 2;
-    const marginY = 6;
+    const posX = (pdfWidth - renderWidth) / 2;
 
-    pdf.addImage(imgData, 'PNG', marginX, marginY, renderWidth, renderHeight, undefined, 'FAST');
+    // Balanced vertical positioning:
+    // If it takes up less than 88% of page height (e.g. F4 which has 330mm),
+    // position it aesthetically with balanced upper-center margin
+    let posY = marginY;
+    if (renderHeight < maxPrintHeight * 0.88) {
+      posY = Math.max(marginY, (pdfHeight - renderHeight) / 3);
+    }
+
+    pdf.addImage(imgData, 'PNG', posX, posY, renderWidth, renderHeight, undefined, 'FAST');
     pdf.save(`${filename}_${paperSize.toUpperCase()}.pdf`);
     return true;
   } catch (err) {
     console.error('Failed generating PDF:', err);
     return false;
+  } finally {
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
   }
 }
 
@@ -269,14 +336,54 @@ export async function downloadElementAsImage(
   const element = document.getElementById(elementId);
   if (!element) return false;
 
+  let container: HTMLDivElement | null = null;
   try {
+    const isA3 = elementId.includes('a3');
+    const targetWidth = isA3 ? 1600 : 800;
+
+    // Clone element
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.id = `${elementId}-img-staging`;
+    clone.style.width = `${targetWidth}px`;
+    clone.style.minWidth = `${targetWidth}px`;
+    clone.style.maxWidth = `${targetWidth}px`;
+    clone.style.margin = '0';
+    clone.style.boxShadow = 'none';
+    clone.style.borderRadius = '0';
+    clone.style.border = 'none';
+    clone.style.padding = '24px';
+    clone.style.backgroundColor = '#ffffff';
+
+    const overflowNodes = clone.querySelectorAll('.overflow-x-auto, .overflow-hidden, .overflow-y-auto');
+    overflowNodes.forEach((node) => {
+      (node as HTMLElement).style.overflow = 'visible';
+      (node as HTMLElement).style.maxWidth = '100%';
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((t) => {
+      t.style.width = '100%';
+      t.style.tableLayout = 'fixed';
+    });
+
+    container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-99999px';
+    container.style.top = '0';
+    container.style.width = `${targetWidth}px`;
+    container.style.zIndex = '-99999';
+    container.style.backgroundColor = '#ffffff';
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    await new Promise((r) => setTimeout(r, 60));
+
     const fn = format === 'jpeg' ? toJpeg : toPng;
-    const dataUrl = await fn(element, {
+    const dataUrl = await fn(clone, {
       quality: 0.95,
       pixelRatio: 2,
       backgroundColor: '#ffffff',
       filter: (node: HTMLElement) => {
-        // Exclude elements marked as no-print or action buttons
         if (node.classList && (node.classList.contains('no-export') || node.classList.contains('no-print'))) {
           return false;
         }
@@ -292,5 +399,9 @@ export async function downloadElementAsImage(
   } catch (err) {
     console.error('Failed to export image:', err);
     return false;
+  } finally {
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
   }
 }

@@ -28,10 +28,12 @@ import {
   Send,
   DownloadCloud,
   Layers,
-  Settings2
+  Settings2,
+  PenTool
 } from 'lucide-react';
 import { getAdminPin, setAdminPin } from '../utils/storage';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../data/appScriptCode';
+import { DigitalSignatureModal } from './Modals/DigitalSignatureModal';
 
 interface SettingsViewProps {
   schoolInfo: SchoolInfo;
@@ -99,6 +101,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [adminPin, setAdminPinInput] = useState('');
   const [pinMessage, setPinMessage] = useState(false);
 
+  // Digital Signature Modal state & Toast
+  const [signatureModal, setSignatureModal] = useState<{
+    isOpen: boolean;
+    target: 'committee' | 'headmaster';
+    title: string;
+    signeeName: string;
+    signeeTitle: string;
+    currentSignature?: string;
+  }>({
+    isOpen: false,
+    target: 'committee',
+    title: 'Tanda Tangan Digital Ketua Panitia SAS',
+    signeeName: form.committeeName,
+    signeeTitle: form.committeeTitle,
+    currentSignature: form.committeeSignatureImage,
+  });
+  const [signatureNotice, setSignatureNotice] = useState<string | null>(null);
+
+  const handleSaveSignatureFromModal = (base64: string) => {
+    if (signatureModal.target === 'committee') {
+      const updated = {
+        ...form,
+        committeeSignatureImage: base64,
+        sessionTimes,
+        googleSync,
+      };
+      setForm(updated);
+      onUpdateSchoolInfo(updated);
+      setSignatureNotice('✓ Tanda tangan digital Ketua Panitia berhasil disimpan & aktif untuk cetak A4/F4/A3!');
+      setTimeout(() => setSignatureNotice(null), 4000);
+    } else {
+      const updated = {
+        ...form,
+        headmasterSignatureImage: base64,
+        sessionTimes,
+        googleSync,
+      };
+      setForm(updated);
+      onUpdateSchoolInfo(updated);
+      setSignatureNotice('✓ Tanda tangan digital Kepala Sekolah berhasil disimpan & aktif untuk cetak A4/F4/A3!');
+      setTimeout(() => setSignatureNotice(null), 4000);
+    }
+  };
+
   // Unique teachers and subjects for batch replace
   const { uniqueTeachers, uniqueSubjects } = React.useMemo(() => {
     const teachers = new Set<string>();
@@ -130,7 +176,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  // Handle image upload helper
+  // Handle image upload helper with auto-save
   const handleImageUpload = (
     field: 'schoolLogoImage' | 'headmasterSignatureImage' | 'headmasterStampImage' | 'committeeSignatureImage',
     e: React.ChangeEvent<HTMLInputElement>
@@ -140,10 +186,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
         const base64 = uploadEvent.target?.result as string;
-        setForm((prev) => ({
-          ...prev,
+        const updated = {
+          ...form,
           [field]: base64,
-        }));
+          sessionTimes,
+          googleSync,
+        };
+        setForm(updated);
+        onUpdateSchoolInfo(updated);
+        if (field === 'committeeSignatureImage') {
+          setSignatureNotice('✓ Berkas tanda tangan digital Ketua Panitia berhasil diunggah & disimpan!');
+          setTimeout(() => setSignatureNotice(null), 4000);
+        } else if (field === 'headmasterSignatureImage') {
+          setSignatureNotice('✓ Berkas tanda tangan digital Kepala Sekolah berhasil diunggah & disimpan!');
+          setTimeout(() => setSignatureNotice(null), 4000);
+        } else if (field === 'schoolLogoImage') {
+          setSignatureNotice('✓ Logo sekolah berhasil diunggah & disimpan!');
+          setTimeout(() => setSignatureNotice(null), 4000);
+        } else if (field === 'headmasterStampImage') {
+          setSignatureNotice('✓ Stempel sekolah berhasil diunggah & disimpan!');
+          setTimeout(() => setSignatureNotice(null), 4000);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -448,7 +511,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSubTab('ttd');
+              setSignatureModal({
+                isOpen: true,
+                target: 'committee',
+                title: 'Tanda Tangan Digital Ketua Panitia SAS',
+                signeeName: form.committeeName,
+                signeeTitle: form.committeeTitle,
+                currentSignature: form.committeeSignatureImage,
+              });
+            }}
+            className="px-3.5 py-2 bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <PenTool className="w-3.5 h-3.5 text-blue-700" />
+            <span>Upload / Gores TTD Panitia</span>
+          </button>
+
           <button
             type="button"
             onClick={handleSave}
@@ -486,6 +568,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <FileSignature className="w-4 h-4" />
           <span>Tanda Tangan & Pengesahan</span>
+          {form.committeeSignatureImage && (
+            <span className="w-2 h-2 rounded-full bg-emerald-400" title="TTD Panitia Aktif" />
+          )}
         </button>
 
         {/* Tab Baru 1: Pengaturan Waktu & Jam Sesi Otomatis */}
@@ -555,6 +640,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <span>Cadangan, PIN & Reset</span>
         </button>
       </div>
+
+      {/* Toast Notice Banner for Signatures & Auto-save */}
+      {signatureNotice && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-semibold text-emerald-900 flex items-center gap-2 shadow-2xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{signatureNotice}</span>
+        </div>
+      )}
 
       {/* ================================================================= */}
       {/* SUBTAB 1: KOP SURAT & LEMBAGA */}
@@ -817,13 +910,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
-              {/* Signature Image Upload */}
-              <div className="pt-2 border-t border-slate-200">
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Gambar Tanda Tangan Kepala Sekolah (Scan PNG/JPG)
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="w-28 h-16 border border-slate-300 rounded bg-white flex items-center justify-center overflow-hidden">
+              {/* Signature Image Upload & Digital Draw for Kepala Sekolah */}
+              <div className="pt-3 border-t border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-800">
+                    Tanda Tangan Digital Kepala Sekolah
+                  </label>
+                  {form.headmasterSignatureImage ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      TTD Aktif
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      Belum Ada TTD
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  <div className="w-32 h-20 border border-dashed border-slate-300 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden p-1 flex-shrink-0">
                     {form.headmasterSignatureImage ? (
                       <img
                         src={form.headmasterSignatureImage}
@@ -831,28 +937,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         className="max-h-full max-w-full object-contain"
                       />
                     ) : (
-                      <span className="text-[10px] text-slate-400 italic">Belum ada</span>
+                      <div className="text-center text-slate-400">
+                        <PenTool className="w-5 h-5 mx-auto mb-0.5 stroke-[1.5]" />
+                        <span className="text-[9px] block">Belum ada</span>
+                      </div>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    <label className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold cursor-pointer block text-center">
-                      Unggah TTD
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload('headmasterSignatureImage', e)}
-                        className="hidden"
-                      />
-                    </label>
-                    {form.headmasterSignatureImage && (
+
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setForm({ ...form, headmasterSignatureImage: '' })}
-                        className="text-[11px] text-rose-600 hover:underline block"
+                        onClick={() => {
+                          setSignatureModal({
+                            isOpen: true,
+                            target: 'headmaster',
+                            title: 'Tanda Tangan Digital Kepala Sekolah',
+                            signeeName: form.headmasterName,
+                            signeeTitle: form.headmasterTitle,
+                            currentSignature: form.headmasterSignatureImage,
+                          });
+                        }}
+                        className="px-2.5 py-1.5 bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200 rounded-md font-semibold text-[11px] flex items-center gap-1 transition-colors"
                       >
-                        Hapus TTD
+                        <PenTool className="w-3 h-3" />
+                        <span>Gores di Layar</span>
                       </button>
-                    )}
+
+                      <label className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md font-semibold text-[11px] cursor-pointer flex items-center gap-1 transition-colors">
+                        <Upload className="w-3 h-3 text-slate-500" />
+                        <span>Unggah Scan</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload('headmasterSignatureImage', e)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {form.headmasterSignatureImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...form, headmasterSignatureImage: '' };
+                            setForm(updated);
+                            onUpdateSchoolInfo(updated);
+                            setSignatureNotice('Tanda tangan Kepala Sekolah berhasil dihapus.');
+                            setTimeout(() => setSignatureNotice(null), 3000);
+                          }}
+                          className="px-2 py-1.5 text-[11px] text-rose-600 hover:bg-rose-50 rounded-md font-medium transition-colors"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Bisa digambar langsung di layar sentuh/mouse atau unggah berkas PNG transparan/JPG.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -887,7 +1028,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {form.headmasterStampImage && (
                       <button
                         type="button"
-                        onClick={() => setForm({ ...form, headmasterStampImage: '' })}
+                        onClick={() => {
+                          const updated = { ...form, headmasterStampImage: '' };
+                          setForm(updated);
+                          onUpdateSchoolInfo(updated);
+                          setSignatureNotice('Stempel sekolah berhasil dihapus.');
+                          setTimeout(() => setSignatureNotice(null), 3000);
+                        }}
                         className="text-[11px] text-rose-600 hover:underline block"
                       >
                         Hapus Stempel
@@ -900,9 +1047,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* Ketua Panitia SAS */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 text-xs">
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                <FileSignature className="w-4 h-4 text-blue-700" />
-                <h4 className="font-bold text-slate-900">Ketua Panitia SAS</h4>
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <FileSignature className="w-4 h-4 text-blue-700" />
+                  <h4 className="font-bold text-slate-900">Ketua Panitia SAS</h4>
+                </div>
+                {form.committeeSignatureImage ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    TTD Digital Aktif
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    Belum Ada TTD
+                  </span>
+                )}
               </div>
 
               <div>
@@ -944,13 +1103,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
-              {/* Committee Signature Image Upload */}
-              <div className="pt-2 border-t border-slate-200">
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Gambar Tanda Tangan Ketua Panitia (Scan PNG/JPG)
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="w-28 h-16 border border-slate-300 rounded bg-white flex items-center justify-center overflow-hidden">
+              {/* Committee Signature Image Upload & Digital Canvas Pad */}
+              <div className="pt-3 border-t border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-800">
+                    Tanda Tangan Digital Ketua Panitia SAS
+                  </label>
+                  <span className="text-[10px] text-slate-500">
+                    Cetak A4 / F4 / A3
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  <div className="w-32 h-20 border border-dashed border-slate-300 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden p-1 flex-shrink-0">
                     {form.committeeSignatureImage ? (
                       <img
                         src={form.committeeSignatureImage}
@@ -958,28 +1123,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         className="max-h-full max-w-full object-contain"
                       />
                     ) : (
-                      <span className="text-[10px] text-slate-400 italic">Belum ada</span>
+                      <div className="text-center text-slate-400">
+                        <PenTool className="w-5 h-5 mx-auto mb-0.5 stroke-[1.5]" />
+                        <span className="text-[9px] block">Belum ada</span>
+                      </div>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    <label className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold cursor-pointer block text-center">
-                      Unggah TTD
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload('committeeSignatureImage', e)}
-                        className="hidden"
-                      />
-                    </label>
-                    {form.committeeSignatureImage && (
+
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setForm({ ...form, committeeSignatureImage: '' })}
-                        className="text-[11px] text-rose-600 hover:underline block"
+                        onClick={() => {
+                          setSignatureModal({
+                            isOpen: true,
+                            target: 'committee',
+                            title: 'Tanda Tangan Digital Ketua Panitia SAS',
+                            signeeName: form.committeeName,
+                            signeeTitle: form.committeeTitle,
+                            currentSignature: form.committeeSignatureImage,
+                          });
+                        }}
+                        className="px-2.5 py-1.5 bg-blue-700 text-white hover:bg-blue-800 rounded-md font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
                       >
-                        Hapus TTD
+                        <PenTool className="w-3 h-3" />
+                        <span>Gores di Layar</span>
                       </button>
-                    )}
+
+                      <label className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md font-semibold text-[11px] cursor-pointer flex items-center gap-1 transition-colors">
+                        <Upload className="w-3 h-3 text-slate-500" />
+                        <span>Unggah Scan</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload('committeeSignatureImage', e)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {form.committeeSignatureImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...form, committeeSignatureImage: '' };
+                            setForm(updated);
+                            onUpdateSchoolInfo(updated);
+                            setSignatureNotice('Tanda tangan Ketua Panitia berhasil dihapus.');
+                            setTimeout(() => setSignatureNotice(null), 3000);
+                          }}
+                          className="px-2 py-1.5 text-[11px] text-rose-600 hover:bg-rose-50 rounded-md font-medium transition-colors"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Pilih <span className="font-semibold text-slate-700">"Gores di Layar"</span> untuk tanda tangan langsung dengan jari/mouse, atau pilih <span className="font-semibold text-slate-700">"Unggah Scan"</span> jika sudah memiliki file gambar PNG/JPG.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1633,6 +1833,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Digital Signature Drawing & Upload Modal */}
+      <DigitalSignatureModal
+        isOpen={signatureModal.isOpen}
+        onClose={() => setSignatureModal((prev) => ({ ...prev, isOpen: false }))}
+        onSave={handleSaveSignatureFromModal}
+        title={signatureModal.title}
+        signeeName={signatureModal.signeeName}
+        signeeTitle={signatureModal.signeeTitle}
+        currentSignature={signatureModal.currentSignature}
+      />
     </div>
   );
 };
+
