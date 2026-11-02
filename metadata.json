@@ -1,0 +1,6 @@
+{
+  "name": "Jadwal SAS SMAN 2 Kota Pasuruan",
+  "description": "Sistem Informasi Jadwal Terintegrasi Sumatif Akhir Semester (SAS) SMA Negeri 2 Kota Pasuruan TP 2026/2027 Kelas X, XI, dan XII.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
