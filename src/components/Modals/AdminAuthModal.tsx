@@ -227,9 +227,9 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                     }}
                     placeholder={
                       activeTab === 'guru' 
-                        ? 'Contoh: GURU-SMADA2026' 
+                        ? 'Masukkan Token Akun Guru...' 
                         : activeTab === 'kelas'
-                        ? 'Contoh: SAS-X1, SAS-XI2, SAS-XII1'
+                        ? 'Masukkan Token Akun Kelas...'
                         : 'Masukkan Token atau PIN Admin...'
                     }
                     autoFocus

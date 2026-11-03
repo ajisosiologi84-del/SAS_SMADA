@@ -57,7 +57,7 @@ export const LoginPortalScreen: React.FC<LoginPortalScreenProps> = ({
         } else if (activeTab === 'guru') {
           setError('Token Guru tidak valid. Periksa kartu token resmi Anda.');
         } else if (activeTab === 'kelas') {
-          setError('Token Kelas tidak cocok. Pastikan memasukkan token kelas Anda (contoh: SAS-X1).');
+          setError('Token Kelas tidak cocok. Pastikan memasukkan token kelas Anda yang tertera pada kartu token.');
         } else {
           setError('Token atau PIN tidak dikenali. Pastikan Anda memasukkan kode yang benar.');
         }
@@ -277,9 +277,9 @@ export const LoginPortalScreen: React.FC<LoginPortalScreenProps> = ({
                   }}
                   placeholder={
                     activeTab === 'guru'
-                      ? 'Contoh: GURU-SMADA2026'
+                      ? 'Masukkan Token Akun Guru...'
                       : activeTab === 'kelas'
-                      ? 'Contoh: SAS-X1, SAS-XI2, SAS-XII1'
+                      ? 'Masukkan Token Akun Kelas...'
                       : activeTab === 'admin'
                       ? 'Masukkan PIN Admin...'
                       : 'Ketik atau tempel token di sini...'
