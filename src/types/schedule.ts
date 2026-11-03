@@ -13,7 +13,37 @@ export interface ScheduleSlot {
   entries: Record<string, ScheduleEntry | null>;
 }
 
-export type UserRole = 'admin' | 'guru' | 'siswa';
+export type UserRole = 'admin' | 'guru' | 'kelas' | 'siswa';
+
+export interface AdminAccount {
+  id: string;
+  name: string;
+  username: string;
+  pin: string;
+  roleTitle: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+export interface TeacherTokenConfig {
+  defaultTeacherToken: string;
+  customTeacherTokens?: Record<string, string>;
+}
+
+export interface ClassTokenConfig {
+  classTokens: Record<string, string>;
+}
+
+export interface AuthSession {
+  role: UserRole;
+  tokenUsed: string;
+  displayName: string;
+  adminId?: string;
+  adminRoleTitle?: string;
+  lockedClass?: string;
+  lockedTeacher?: string;
+  authenticatedAt: string;
+}
 
 export interface SchoolInfo {
   name: string;

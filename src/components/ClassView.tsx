@@ -16,11 +16,14 @@ import {
   User, 
   BookOpen, 
   CheckCircle2, 
-  AlertTriangle 
+  AlertTriangle,
+  KeyRound
 } from 'lucide-react';
 import { exportClassToExcel, downloadElementAsImage } from '../utils/exportUtils';
 import { KopSurat } from './KopSurat';
 import { PrintPdfModal } from './Modals/PrintPdfModal';
+import { PrintTokenCardsModal } from './Modals/PrintTokenCardsModal';
+import { getClassTokenConfig, getTeacherTokenConfig } from '../utils/storage';
 
 interface ClassViewProps {
   slots: ScheduleSlot[];
@@ -47,6 +50,7 @@ export const ClassView: React.FC<ClassViewProps> = ({
 
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showTokenCardModal, setShowTokenCardModal] = useState(false);
 
   // Extract all slots that have exams for this specific class
   const classSchedule = slots
@@ -80,6 +84,27 @@ export const ClassView: React.FC<ClassViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {role === 'kelas' && (
+        <div className="p-3.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-emerald-500/10 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-xs text-emerald-950 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+              🎓
+            </div>
+            <div>
+              <p className="font-bold text-slate-900">
+                Terautentikasi: Akun Resmi Kelas {selectedClass}
+              </p>
+              <p className="text-[11px] text-slate-600">
+                Hak akses Anda dibatasi khusus untuk melihat, mencetak PDF/JPG, dan mengunduh jadwal resmi Kelas {selectedClass}.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-300 shrink-0">
+            Akses Terkunci: Kelas {selectedClass}
+          </span>
+        </div>
+      )}
+
       {/* Top Selector Navigation */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs no-print space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -175,6 +200,18 @@ export const ClassView: React.FC<ClassViewProps> = ({
               <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
               <span>{isExportingImage ? 'Membuat JPG...' : 'Unduh JPG'}</span>
             </button>
+
+            {role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => setShowTokenCardModal(true)}
+                className="px-3 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors"
+                title={`Cetak kartu token akses resmi untuk Kelas ${selectedClass}`}
+              >
+                <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                <span>Kartu Token Kelas</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -345,6 +382,17 @@ export const ClassView: React.FC<ClassViewProps> = ({
         defaultPaper="a4"
         defaultOrientation="portrait"
         allowA3={false}
+      />
+
+      {/* Print Official Token Cards Modal */}
+      <PrintTokenCardsModal
+        isOpen={showTokenCardModal}
+        onClose={() => setShowTokenCardModal(false)}
+        schoolInfo={schoolInfo}
+        teacherToken={getTeacherTokenConfig().defaultTeacherToken || 'GURU-SMADA2026'}
+        classTokens={getClassTokenConfig().classTokens}
+        initialTarget="single-class"
+        initialSelectedClass={selectedClass}
       />
     </div>
   );

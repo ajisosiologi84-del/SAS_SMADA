@@ -12,11 +12,14 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  KeyRound
 } from 'lucide-react';
 import { exportTeacherToExcel } from '../utils/exportUtils';
 import { KopSurat } from './KopSurat';
 import { PrintPdfModal } from './Modals/PrintPdfModal';
+import { PrintTokenCardsModal } from './Modals/PrintTokenCardsModal';
+import { getTeacherTokenConfig, getClassTokenConfig } from '../utils/storage';
 
 interface TeacherViewProps {
   slots: ScheduleSlot[];
@@ -55,6 +58,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   const [filterQuery, setFilterQuery] = useState('');
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showTokenCardModal, setShowTokenCardModal] = useState(false);
 
   // Filter teachers in selector
   const matchingTeachers = useMemo(() => {
@@ -146,6 +150,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
               <span>Unduh Excel Guru</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowTokenCardModal(true)}
+              className="px-3 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors"
+              title="Cetak kartu token akses resmi untuk Dewan Guru & Pengawas SAS"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+              <span>Kartu Token Guru</span>
+            </button>
+
             <button
               type="button"
               onClick={handlePrint}
@@ -395,6 +409,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         defaultPaper="a4"
         defaultOrientation="portrait"
         allowA3={false}
+      />
+
+      {/* Print Official Token Cards Modal (For Teachers) */}
+      <PrintTokenCardsModal
+        isOpen={showTokenCardModal}
+        onClose={() => setShowTokenCardModal(false)}
+        schoolInfo={schoolInfo}
+        teacherToken={getTeacherTokenConfig().defaultTeacherToken || 'GURU-SMADA2026'}
+        classTokens={getClassTokenConfig().classTokens}
+        initialTarget="teacher"
       />
     </div>
   );

@@ -1,11 +1,25 @@
 import React from 'react';
-import { UserRole, SchoolInfo } from '../types/schedule';
-import { ShieldCheck, GraduationCap, UserCheck, Share2, Printer, Search, Lock } from 'lucide-react';
+import { UserRole, SchoolInfo, AuthSession } from '../types/schedule';
+import { 
+  ShieldCheck, 
+  GraduationCap, 
+  UserCheck, 
+  Share2, 
+  Printer, 
+  Search, 
+  Lock, 
+  KeyRound, 
+  LogOut,
+  Sparkles
+} from 'lucide-react';
 
 interface HeaderProps {
   schoolInfo: SchoolInfo;
   currentRole: UserRole;
+  authSession: AuthSession | null;
   onRoleChange: (role: UserRole) => void;
+  onOpenAuthModal: (tab?: 'auto' | 'admin' | 'guru' | 'kelas') => void;
+  onLogout: () => void;
   onOpenShareModal: () => void;
   onPrintA3: () => void;
   searchQuery: string;
@@ -15,7 +29,10 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   schoolInfo,
   currentRole,
+  authSession,
   onRoleChange,
+  onOpenAuthModal,
+  onLogout,
   onOpenShareModal,
   onPrintA3,
   searchQuery,
@@ -42,17 +59,17 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                 <span>Jadwal Terintegrasi Kelas X, XI, & XII</span>
                 <span aria-hidden="true">·</span>
-                <span>Minggu 1 & 2 (23 Nov – 2 Des 2026)</span>
+                <span>Pasuruan, Jawa Timur</span>
                 <span aria-hidden="true">·</span>
                 <span className="text-emerald-700 font-medium">Revisi v2 (0% Bentrok)</span>
               </div>
             </div>
           </div>
 
-          {/* Controls: Search, Role Switcher, Share, Print */}
+          {/* Controls: Search, Auth Status, Share, Print */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Search Input */}
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+            <div className="relative min-w-[180px] flex-1 sm:flex-initial">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -71,52 +88,57 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Role Switcher */}
-            <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => onRoleChange('siswa')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors ${
-                  currentRole === 'siswa'
-                    ? 'bg-white text-blue-900 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Akses Siswa & Publik (Hanya Lihat)"
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>Siswa</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onRoleChange('guru')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors ${
-                  currentRole === 'guru'
-                    ? 'bg-white text-blue-900 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Akses Guru (Lihat & Filter Jadwal Mengawas)"
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Guru</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onRoleChange('admin')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors ${
-                  currentRole === 'admin'
-                    ? 'bg-slate-900 text-white shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Akses Admin (CRUD & Unggah Berkas)"
-              >
-                {currentRole === 'admin' ? (
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+            {/* Account Status Badge or Login Button */}
+            {authSession ? (
+              <div className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200 rounded-lg">
+                {authSession.role === 'admin' && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-white rounded-md text-xs font-semibold shadow-2xs">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="max-w-[140px] truncate" title={authSession.displayName}>
+                      {authSession.adminRoleTitle || authSession.displayName}
+                    </span>
+                  </div>
                 )}
-                <span>Admin</span>
+
+                {authSession.role === 'guru' && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-700 text-white rounded-md text-xs font-semibold shadow-2xs">
+                    <UserCheck className="w-3.5 h-3.5 text-blue-200 shrink-0" />
+                    <span className="max-w-[130px] truncate" title={authSession.displayName}>
+                      {authSession.lockedTeacher || 'Guru SAS'}
+                    </span>
+                  </div>
+                )}
+
+                {authSession.role === 'kelas' && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-700 text-white rounded-md text-xs font-semibold shadow-2xs">
+                    <GraduationCap className="w-3.5 h-3.5 text-purple-200 shrink-0" />
+                    <span className="font-bold">
+                      Kelas {authSession.lockedClass}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                  title="Keluar / Ganti Akun"
+                  aria-label="Keluar"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenAuthModal('auto')}
+                className="px-3 py-1.5 text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-lg flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                title="Masuk dengan Token Guru, Token Kelas, atau PIN Admin"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-blue-700" />
+                <span>Masuk dengan Token / PIN</span>
               </button>
-            </div>
+            )}
 
             {/* Share Public Link Button */}
             <button
