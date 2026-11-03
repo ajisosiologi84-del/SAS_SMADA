@@ -42,11 +42,13 @@ export const DEFAULT_SCHOOL_INFO: SchoolInfo = {
     fridaySession2: '09.00 - 11.00 WIB',
   },
   googleSync: {
-    webAppUrl: '',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbwH_rv-76X15KJYlzPSWjo2F5zVrVVA4hK7K06ItYOPdEijEbYOHMVETpz8htQZ_JoDig/exec',
     sheetName: 'Jadwal_SAS_SMAN2',
     lastSyncedAt: '',
   },
 };
+
+export const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwH_rv-76X15KJYlzPSWjo2F5zVrVVA4hK7K06ItYOPdEijEbYOHMVETpz8htQZ_JoDig/exec';
 
 export const INITIAL_SCHEDULE_SLOTS: ScheduleSlot[] = [
   {

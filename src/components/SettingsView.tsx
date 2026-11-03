@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   SchoolInfo, 
   ScheduleSlot, 
@@ -27,6 +27,7 @@ import {
   Clock,
   FileSpreadsheet,
   Copy,
+  Share2,
   ExternalLink,
   CheckCircle2,
   Send,
@@ -53,7 +54,9 @@ import {
   saveTeacherTokenConfig,
   getClassTokenConfig,
   saveClassTokenConfig,
-  generateDefaultClassTokens
+  generateDefaultClassTokens,
+  fetchGlobalServerConfig,
+  saveGlobalServerConfig
 } from '../utils/storage';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../data/appScriptCode';
 import { DigitalSignatureModal } from './Modals/DigitalSignatureModal';
@@ -140,6 +143,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isPushing, setIsPushing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isSavingServerConfig, setIsSavingServerConfig] = useState(false);
+  const [copiedSyncLink, setCopiedSyncLink] = useState(false);
+
+  // Fetch persistent server configuration so any device/browser automatically reflects it
+  useEffect(() => {
+    fetchGlobalServerConfig().then((cfg) => {
+      if (cfg?.webAppUrl && cfg.webAppUrl.trim() !== '') {
+        setGoogleSync((prev) => ({
+          ...prev,
+          webAppUrl: cfg.webAppUrl || prev.webAppUrl,
+          lastSyncedAt: cfg.lastSyncedAt || prev.lastSyncedAt,
+        }));
+      }
+    });
+  }, []);
 
   // New rule input
   const [newRule, setNewRule] = useState('');
@@ -343,7 +361,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const json = await res.json();
 
       if (json.status === 'success') {
-        setSyncStatus({ text: 'Koneksi Berhasil! Google Apps Script siap digunakan.', type: 'success' });
+        setSyncStatus({ text: 'Koneksi Berhasil! Google Apps Script siap digunakan dan otomatis disimpan permanen di server.', type: 'success' });
+        // Automatically persist URL to server & storage
+        saveGlobalServerConfig({
+          webAppUrl: googleSync.webAppUrl.trim(),
+          sheetName: googleSync.sheetName || 'Jadwal_SAS_SMAN2',
+        });
       } else {
         setSyncStatus({ text: `Respon diterima: ${json.message || 'Format tidak dikenal'}`, type: 'error' });
       }
@@ -355,6 +378,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } finally {
       setIsTestingConnection(false);
     }
+  };
+
+  const handleSaveGoogleSyncPermanent = async () => {
+    if (!googleSync.webAppUrl.trim()) {
+      setSyncStatus({ text: 'Masukkan URL Web App Google Apps Script terlebih dahulu!', type: 'error' });
+      return;
+    }
+
+    setIsSavingServerConfig(true);
+    setSyncStatus(null);
+    try {
+      const cleanUrl = googleSync.webAppUrl.trim();
+      const updatedSync = { ...googleSync, webAppUrl: cleanUrl };
+      setGoogleSync(updatedSync);
+
+      const updatedForm = { ...form, googleSync: updatedSync };
+      setForm(updatedForm);
+      onUpdateSchoolInfo(updatedForm);
+
+      const ok = await saveGlobalServerConfig({
+        webAppUrl: cleanUrl,
+        sheetName: googleSync.sheetName || 'Jadwal_SAS_SMAN2',
+        lastSyncedAt: googleSync.lastSyncedAt || '',
+      });
+
+      if (ok) {
+        setSyncStatus({
+          text: '✓ URL Google Apps Script BERHASIL DISIMPAN PERMANEN DI SERVER! Seluruh browser, laptop, HP, dan perangkat lain kini otomatis terhubung tanpa perlu memasukkan URL kembali.',
+          type: 'success',
+        });
+      } else {
+        setSyncStatus({
+          text: '✓ URL Google Apps Script disimpan ke sistem. Sinkronisasi aktif untuk perangkat Anda.',
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      setSyncStatus({ text: `Gagal menyimpan: ${err.message}`, type: 'error' });
+    } finally {
+      setIsSavingServerConfig(false);
+    }
+  };
+
+  const handleCopyAutoSyncLink = () => {
+    if (!googleSync.webAppUrl.trim()) {
+      setSyncStatus({ text: 'Masukkan URL Web App terlebih dahulu sebelum menyalin tautan.', type: 'error' });
+      return;
+    }
+    const cleanUrl = googleSync.webAppUrl.trim();
+    const appOrigin = window.location.origin.includes('localhost') 
+      ? 'https://sassmada.vercel.app' 
+      : window.location.origin;
+    const fullSyncLink = `${appOrigin}/?sync=${encodeURIComponent(cleanUrl)}`;
+
+    navigator.clipboard.writeText(fullSyncLink);
+    setCopiedSyncLink(true);
+    setTimeout(() => setCopiedSyncLink(false), 3000);
+    setSyncStatus({
+      text: '✓ Tautan sinkronisasi otomatis tersalin! Jika Anda membuka tautan ini di browser atau HP apa pun, URL Apps Script akan otomatis terpasang dan tersimpan selamanya.',
+      type: 'info',
+    });
   };
 
   const handlePullFromGoogleSheets = async () => {
@@ -1604,21 +1688,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={googleSync.webAppUrl}
                   onChange={(e) => setGoogleSync({ ...googleSync, webAppUrl: e.target.value })}
                   placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 bg-white text-xs font-mono focus:ring-1 focus:ring-blue-600"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 bg-white text-xs font-mono focus:ring-1 focus:ring-blue-600 shadow-2xs"
                 />
+
+                <button
+                  type="button"
+                  onClick={handleSaveGoogleSyncPermanent}
+                  disabled={isSavingServerConfig}
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 flex-shrink-0 transition-colors shadow-xs"
+                  title="Simpan URL ke server agar tersinkronisasi ke seluruh browser dan perangkat lain tanpa perlu mengetik ulang"
+                >
+                  <Save className={`w-3.5 h-3.5 ${isSavingServerConfig ? 'animate-pulse' : ''}`} />
+                  <span>{isSavingServerConfig ? 'Menyimpan...' : 'Simpan URL Permanen'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleTestGoogleConnection}
                   disabled={isTestingConnection}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 flex-shrink-0 transition-colors shadow-xs"
+                  className="w-full sm:w-auto px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 flex-shrink-0 transition-colors shadow-xs"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
                   <span>{isTestingConnection ? 'Menguji...' : 'Uji Koneksi'}</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyAutoSyncLink}
+                  className="w-full sm:w-auto px-3 py-2 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-300 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 flex-shrink-0 transition-colors shadow-2xs"
+                  title="Salin tautan dengan parameter sync otomatis agar perangkat/browser lain langsung tersambung"
+                >
+                  {copiedSyncLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5 text-emerald-700" />}
+                  <span>{copiedSyncLink ? 'Tersalin!' : 'Bagikan Link Sync'}</span>
+                </button>
               </div>
-              <p className="text-[11px] text-slate-500">
-                URL ini diperoleh setelah menerapkan (Deploy) skrip <code className="font-mono font-semibold text-slate-800">Code.gs</code> sebagai Aplikasi Web di Google Sheets.
-              </p>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-600">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Auto-Sync Seluruh Browser
+                </span>
+                <span>
+                  Simpan URL <strong>1 kali</strong> di sini, maka seluruh browser (Chrome, Safari, HP, laptop lain) otomatis terhubung ke skrip Google Apps Script tanpa perlu memasukkan kembali.
+                </span>
+              </div>
             </div>
 
             {/* Sync Status Feedback */}

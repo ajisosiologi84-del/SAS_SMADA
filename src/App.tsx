@@ -14,7 +14,9 @@ import {
   resetToDefaultData,
   getStoredAuthSession,
   saveStoredAuthSession,
-  verifyTokenOrPin
+  verifyTokenOrPin,
+  fetchGlobalServerConfig,
+  saveGlobalServerConfig
 } from './utils/storage';
 
 // Components
@@ -102,6 +104,39 @@ export default function App() {
       const urlClass = params.get('kelas');
       const urlGuru = params.get('guru');
       const urlTab = params.get('tab');
+
+      // Check for Google Apps Script sync URL parameter: ?sync=... or ?appscript=...
+      const urlSync = params.get('sync') || params.get('appscript');
+      if (urlSync && urlSync.startsWith('http')) {
+        const cleanSyncUrl = urlSync.trim();
+        const updated = {
+          ...schoolInfo,
+          googleSync: {
+            ...schoolInfo.googleSync,
+            webAppUrl: cleanSyncUrl,
+          },
+        };
+        handleUpdateSchoolInfo(updated);
+        saveGlobalServerConfig({
+          webAppUrl: cleanSyncUrl,
+          sheetName: schoolInfo.googleSync?.sheetName || 'Jadwal_SAS_SMAN2',
+        });
+      }
+
+      // Check global server config so any browser automatically gets the saved Google Apps Script URL
+      fetchGlobalServerConfig().then((serverCfg) => {
+        if (serverCfg?.webAppUrl && serverCfg.webAppUrl !== schoolInfo.googleSync?.webAppUrl) {
+          const updated = {
+            ...schoolInfo,
+            googleSync: {
+              ...schoolInfo.googleSync,
+              webAppUrl: serverCfg.webAppUrl,
+              lastSyncedAt: serverCfg.lastSyncedAt || schoolInfo.googleSync?.lastSyncedAt || '',
+            },
+          };
+          handleUpdateSchoolInfo(updated);
+        }
+      });
 
       // Auto-authenticate if valid token is provided in URL
       if (urlToken) {

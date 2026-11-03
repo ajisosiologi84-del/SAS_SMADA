@@ -8,6 +8,7 @@ import {
   ALL_CLASSES 
 } from '../types/schedule';
 import { INITIAL_SCHEDULE_SLOTS, DEFAULT_SCHOOL_INFO } from '../data/initialSchedule';
+import bundledConfig from '../data/savedConfig.json';
 
 const STORAGE_KEY_SLOTS = 'sman2_sas_slots_v3';
 const STORAGE_KEY_SCHOOL = 'sman2_sas_school_info_v3';
@@ -88,8 +89,30 @@ export function saveStoredSlots(slots: ScheduleSlot[]): void {
 export function getStoredSchoolInfo(): SchoolInfo {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SCHOOL);
-    if (!raw) return DEFAULT_SCHOOL_INFO;
-    return { ...DEFAULT_SCHOOL_INFO, ...JSON.parse(raw) };
+    const fallbackUrl = bundledConfig?.webAppUrl || DEFAULT_SCHOOL_INFO.googleSync?.webAppUrl || '';
+    
+    if (!raw) {
+      return {
+        ...DEFAULT_SCHOOL_INFO,
+        googleSync: {
+          ...DEFAULT_SCHOOL_INFO.googleSync,
+          webAppUrl: fallbackUrl,
+        },
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    const merged = { ...DEFAULT_SCHOOL_INFO, ...parsed };
+
+    // If localStorage has empty or missing webAppUrl, populate from bundled fallback
+    if ((!merged.googleSync?.webAppUrl || merged.googleSync.webAppUrl.trim() === '') && fallbackUrl) {
+      merged.googleSync = {
+        ...merged.googleSync,
+        webAppUrl: fallbackUrl,
+      };
+    }
+
+    return merged;
   } catch (e) {
     return DEFAULT_SCHOOL_INFO;
   }
@@ -98,8 +121,51 @@ export function getStoredSchoolInfo(): SchoolInfo {
 export function saveStoredSchoolInfo(info: SchoolInfo): void {
   try {
     localStorage.setItem(STORAGE_KEY_SCHOOL, JSON.stringify(info));
+
+    // Automatically sync Google Apps Script URL to backend server across all browsers
+    if (info.googleSync?.webAppUrl) {
+      saveGlobalServerConfig({
+        webAppUrl: info.googleSync.webAppUrl,
+        sheetName: info.googleSync.sheetName || 'Jadwal_SAS_SMAN2',
+        lastSyncedAt: info.googleSync.lastSyncedAt || '',
+      }).catch((e) => console.warn('Background server config sync error:', e));
+    }
   } catch (e) {
     console.error('Error saving school info:', e);
+  }
+}
+
+/**
+ * Fetch persistent Google Apps Script URL and global configuration from backend server
+ */
+export async function fetchGlobalServerConfig(): Promise<{ webAppUrl?: string; sheetName?: string; lastSyncedAt?: string } | null> {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json?.status === 'success' && json?.config) {
+      return json.config;
+    }
+  } catch (err) {
+    // offline or static fallback
+  }
+  return null;
+}
+
+/**
+ * Persist Google Apps Script URL and global configuration to backend server
+ */
+export async function saveGlobalServerConfig(config: { webAppUrl: string; sheetName?: string; lastSyncedAt?: string }): Promise<boolean> {
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to save global server config:', err);
+    return false;
   }
 }
 
