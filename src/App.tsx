@@ -13,7 +13,8 @@ import {
   saveStoredSchoolInfo, 
   resetToDefaultData,
   getStoredAuthSession,
-  saveStoredAuthSession 
+  saveStoredAuthSession,
+  verifyTokenOrPin
 } from './utils/storage';
 
 // Components
@@ -25,6 +26,7 @@ import { DailyAgendaView } from './components/DailyAgendaView';
 import { StatsView } from './components/StatsView';
 import { AdminPanel } from './components/AdminPanel';
 import { SettingsView } from './components/SettingsView';
+import { LoginPortalScreen } from './components/LoginPortalScreen';
 
 // Modals
 import { AdminAuthModal } from './components/Modals/AdminAuthModal';
@@ -63,13 +65,13 @@ export default function App() {
     return session ? session.role === 'admin' : false;
   });
 
-  // Active navigation tab
+  // Active navigation tab (matrix is ONLY for admin, students and classes default to class)
   const [activeTab, setActiveTab] = useState<'matrix' | 'class' | 'teacher' | 'agenda' | 'stats' | 'admin' | 'settings'>(() => {
     const session = getStoredAuthSession();
     if (session?.role === 'guru') return 'teacher';
     if (session?.role === 'kelas') return 'class';
     if (session?.role === 'admin') return 'matrix';
-    return 'matrix';
+    return 'class';
   });
 
   // Selected filters / context
@@ -95,10 +97,20 @@ export default function App() {
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
       const urlRole = params.get('role');
       const urlClass = params.get('kelas');
       const urlGuru = params.get('guru');
       const urlTab = params.get('tab');
+
+      // Auto-authenticate if valid token is provided in URL
+      if (urlToken) {
+        const verified = verifyTokenOrPin(urlToken);
+        if (verified) {
+          handleAuthSuccess(verified);
+          return;
+        }
+      }
 
       // If user is logged in as guru or class, strictly maintain their designated scope
       const currentSession = getStoredAuthSession();
@@ -129,12 +141,28 @@ export default function App() {
       }
 
       if (urlTab && ['matrix', 'class', 'teacher', 'agenda', 'stats'].includes(urlTab)) {
-        setActiveTab(urlTab as any);
+        if (urlTab === 'matrix') {
+          // Matrix A3 is STRICTLY restricted to Admin
+          if (currentSession?.role === 'admin' || isAdminAuthenticated) {
+            setActiveTab('matrix');
+          } else {
+            setActiveTab('class');
+          }
+        } else {
+          setActiveTab(urlTab as any);
+        }
       }
     } catch (e) {
       console.error('Failed reading URL params:', e);
     }
   }, [isAdminAuthenticated]);
+
+  // Ensure that if role is siswa or kelas, activeTab can never be matrix
+  useEffect(() => {
+    if ((role === 'siswa' || role === 'kelas') && activeTab === 'matrix') {
+      setActiveTab('class');
+    }
+  }, [role, activeTab]);
 
   // Save changes to storage whenever slots or schoolInfo update
   const handleUpdateSlots = (newSlots: ScheduleSlot[]) => {
@@ -173,8 +201,8 @@ export default function App() {
       }
     } else {
       setRole('siswa');
-      if (activeTab === 'admin' || activeTab === 'settings') {
-        setActiveTab('matrix');
+      if (activeTab === 'admin' || activeTab === 'settings' || activeTab === 'matrix') {
+        setActiveTab('class');
       }
     }
   };
@@ -210,7 +238,7 @@ export default function App() {
     setAuthSession(null);
     setRole('siswa');
     setIsAdminAuthenticated(false);
-    setActiveTab('matrix');
+    setActiveTab('class');
   };
 
   // Slot CRUD handlers
@@ -246,13 +274,33 @@ export default function App() {
     setSchoolInfo(res.school);
   };
 
-  // Quick Print trigger
+  // Quick Print trigger (Khusus Admin)
   const handlePrintA3 = () => {
+    if (role !== 'admin') return;
     setActiveTab('matrix');
     setTimeout(() => {
       window.print();
     }, 150);
   };
+
+  // Jika pengguna belum login, langsung tampilkan Login Portal Screen terlebih dahulu!
+  if (!authSession) {
+    return (
+      <LoginPortalScreen
+        schoolInfo={schoolInfo}
+        onLoginSuccess={handleAuthSuccess}
+        onContinueAsStudent={() => {
+          const studentSession: AuthSession = {
+            role: 'siswa',
+            tokenUsed: 'PUBLIK',
+            displayName: 'Siswa / Tamu Publik',
+            authenticatedAt: new Date().toISOString(),
+          };
+          handleAuthSuccess(studentSession);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
@@ -304,18 +352,21 @@ export default function App() {
             {/* If ADMIN or SISWA: standard menus */}
             {role !== 'guru' && role !== 'kelas' && (
               <>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('matrix')}
-                  className={`flex items-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-                    activeTab === 'matrix'
-                      ? 'bg-blue-50 text-blue-900 border border-blue-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4 text-blue-700" />
-                  <span>Matriks Terintegrasi (A3)</span>
-                </button>
+                {/* Matriks Terintegrasi (A3) - KHUSUS ADMIN (Tidak tampil di akun kelas/siswa) */}
+                {role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('matrix')}
+                    className={`flex items-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+                      activeTab === 'matrix'
+                        ? 'bg-blue-50 text-blue-900 border border-blue-200 font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Grid3X3 className="w-4 h-4 text-blue-700" />
+                    <span>Matriks Terintegrasi (A3)</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -494,7 +545,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-blue-700 flex-shrink-0" />
               <span>
-                <strong>Mode Publik / Siswa:</strong> Anda dapat melihat jadwal lengkap, memilih kelas, dan mencetak jadwal ujian resmi tanpa hambatan.
+                <strong>Portal Jadwal Resmi Siswa:</strong> Pilih kelas Anda pada menu <strong>Jadwal Per Kelas</strong> untuk memantau waktu ujian, mengunduh JPG/Excel, dan mencetak jadwal resmi.
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
@@ -521,8 +572,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 1: Integrated Matrix View */}
-        {activeTab === 'matrix' && (
+        {/* Tab 1: Integrated Matrix View - KHUSUS ADMIN (Tidak tampil di akun kelas/siswa) */}
+        {activeTab === 'matrix' && role === 'admin' && (
           <MatrixView
             slots={slots}
             schoolInfo={schoolInfo}

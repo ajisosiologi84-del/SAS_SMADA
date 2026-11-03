@@ -151,16 +151,18 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">Bagikan</span>
             </button>
 
-            {/* Quick Print A3 Button */}
-            <button
-              type="button"
-              onClick={onPrintA3}
-              className="p-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
-              title="Cetak Jadwal Format A3 Landscape"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Cetak A3</span>
-            </button>
+            {/* Quick Print A3 Button (Khusus Admin) */}
+            {currentRole === 'admin' && (
+              <button
+                type="button"
+                onClick={onPrintA3}
+                className="p-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
+                title="Cetak Jadwal Format A3 Landscape (Khusus Admin)"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Cetak A3</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
