@@ -450,22 +450,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsPulling(true);
     setSyncStatus(null);
     try {
-      const url = googleSync.webAppUrl.includes('?') 
-        ? `${googleSync.webAppUrl}&action=get_schedule` 
-        : `${googleSync.webAppUrl}?action=get_schedule`;
+      const cleanUrl = googleSync.webAppUrl.trim();
+      const url = cleanUrl.includes('?') 
+        ? `${cleanUrl}&action=get_schedule` 
+        : `${cleanUrl}?action=get_schedule`;
 
-      const res = await fetch(url);
-      const json = await res.json();
+      let json: any = null;
+      try {
+        const res = await fetch(url);
+        json = await res.json();
+      } catch (directErr) {
+        // Fallback to proxy
+        const proxyRes = await fetch(`/api/proxy-sheet?url=${encodeURIComponent(cleanUrl)}&action=get_schedule`);
+        json = await proxyRes.json();
+      }
 
-      if (json.status === 'success' && Array.isArray(json.slots) && json.slots.length > 0) {
+      if (json && json.status === 'success' && Array.isArray(json.slots) && json.slots.length > 0) {
         onUpdateSlots(json.slots);
+        
+        let updatedForm = { ...form };
+        if (json.schoolInfo && typeof json.schoolInfo === 'object') {
+          updatedForm = {
+            ...updatedForm,
+            headmasterTitle: json.schoolInfo.headmasterTitle || updatedForm.headmasterTitle,
+            headmasterName: json.schoolInfo.headmasterName || updatedForm.headmasterName,
+            headmasterNip: json.schoolInfo.headmasterNip || updatedForm.headmasterNip,
+            headmasterSignatureImage: json.schoolInfo.headmasterSignatureImage || updatedForm.headmasterSignatureImage,
+            committeeTitle: json.schoolInfo.committeeTitle || updatedForm.committeeTitle,
+            committeeName: json.schoolInfo.committeeName || updatedForm.committeeName,
+            committeeNip: json.schoolInfo.committeeNip || updatedForm.committeeNip,
+            committeeSignatureImage: json.schoolInfo.committeeSignatureImage || updatedForm.committeeSignatureImage,
+            academicYear: json.schoolInfo.academicYear || updatedForm.academicYear,
+            semester: json.schoolInfo.semester || updatedForm.semester,
+            signPlaceAndDate: json.schoolInfo.signPlaceAndDate || updatedForm.signPlaceAndDate,
+          };
+          setForm(updatedForm);
+        }
+
         const now = new Date().toLocaleString('id-ID');
-        const updatedSync = { ...googleSync, lastSyncedAt: now };
+        const updatedSync = { ...googleSync, lastSyncedAt: now, webAppUrl: cleanUrl };
         setGoogleSync(updatedSync);
-        onUpdateSchoolInfo({ ...form, googleSync: updatedSync });
-        setSyncStatus({ text: `Sinkronisasi Sukses: Berhasil menarik ${json.slots.length} slot jadwal dari Google Sheets!`, type: 'success' });
+        onUpdateSchoolInfo({ ...updatedForm, googleSync: updatedSync });
+
+        saveGlobalServerConfig({
+          webAppUrl: cleanUrl,
+          sheetName: googleSync.sheetName || 'Jadwal_SAS_SMAN2',
+          lastSyncedAt: now,
+        });
+
+        setSyncStatus({ text: `Sinkronisasi Sukses: Berhasil menarik ${json.slots.length} slot jadwal dan data pengesahan resmi dari Google Sheets!`, type: 'success' });
+      } else if (json && json.message && json.message.includes('kosong')) {
+        setSyncStatus({ 
+          text: 'Spreadsheet Google Sheets masih baru/kosong. Sistem otomatis menyiapkan format dan mengekspor seluruh data awal...', 
+          type: 'info' 
+        });
+        await handlePushToGoogleSheets();
       } else {
-        setSyncStatus({ text: json.message || 'Gagal membaca slot jadwal dari Google Sheets.', type: 'error' });
+        setSyncStatus({ text: json?.message || 'Gagal membaca slot jadwal dari Google Sheets.', type: 'error' });
       }
     } catch (err: any) {
       setSyncStatus({ text: `Gagal menarik data dari Google Sheets: ${err.message}`, type: 'error' });
@@ -483,6 +524,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsPushing(true);
     setSyncStatus(null);
     try {
+      const cleanUrl = googleSync.webAppUrl.trim();
       const payload = {
         action: 'sync_schedule',
         schoolInfo: form,
@@ -494,17 +536,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         },
       };
 
-      await fetch(googleSync.webAppUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
-      });
+      try {
+        await fetch(cleanUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+          mode: 'no-cors',
+        });
+      } catch (directErr) {
+        // Fallback to proxy
+        await fetch('/api/proxy-sheet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUrl: cleanUrl, ...payload }),
+        });
+      }
 
       const now = new Date().toLocaleString('id-ID');
-      const updatedSync = { ...googleSync, lastSyncedAt: now };
+      const updatedSync = { ...googleSync, lastSyncedAt: now, webAppUrl: cleanUrl };
       setGoogleSync(updatedSync);
       onUpdateSchoolInfo({ ...form, googleSync: updatedSync });
-      setSyncStatus({ text: `Berhasil mengekspor & menyinkronkan seluruh ${slots.length} slot jadwal serta token hak akses ke Google Sheets!`, type: 'success' });
+
+      saveGlobalServerConfig({
+        webAppUrl: cleanUrl,
+        sheetName: googleSync.sheetName || 'Jadwal_SAS_SMAN2',
+        lastSyncedAt: now,
+      });
+
+      setSyncStatus({ text: `Berhasil mengekspor & menyinkronkan seluruh ${slots.length} slot jadwal, token hak akses, serta tanda tangan resmi ke Google Sheets!`, type: 'success' });
     } catch (err: any) {
       setSyncStatus({ text: `Gagal mengirim data ke Google Sheets: ${err.message}`, type: 'error' });
     } finally {

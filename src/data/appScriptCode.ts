@@ -194,10 +194,13 @@ function doGet(e) {
       });
     }
 
+    const schoolConfig = readSchoolConfigSheet(ss);
+
     return createJsonResponse({
       status: 'success',
       totalSlots: slots.length,
       slots: slots,
+      schoolInfo: schoolConfig,
       timestamp: new Date().toISOString()
     });
 
@@ -239,19 +242,29 @@ function doPost(e) {
     }
     sheet.clear();
 
-    const rows = [];
-    rows.push([schoolInfo.name || 'SMA NEGERI 2 KOTA PASURUAN']);
-    rows.push([
-      'JADWAL SUMATIF AKHIR SEMESTER (SAS) TERINTEGRASI KELAS X, XI, DAN XII (TP ' +
-      (schoolInfo.academicYear || '2026/2027') + ')'
-    ]);
-    rows.push([
-      'Sinkronisasi Terakhir: ' + Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd-MM-yyyy HH:mm:ss') + ' WIB | Terverifikasi 0% Bentrok'
-    ]);
-    rows.push([]);
-
     // Header Tabel Jadwal
     const header = ['Slot', 'Minggu', 'Hari & Tanggal', 'Sesi / Jam', 'Waktu', ...ALL_CLASSES];
+    const numCols = header.length;
+
+    function padRow(arr) {
+      const copy = arr.slice();
+      while (copy.length < numCols) {
+        copy.push('');
+      }
+      return copy;
+    }
+
+    const rows = [];
+    rows.push(padRow([schoolInfo.name || 'SMA NEGERI 2 KOTA PASURUAN']));
+    rows.push(padRow([
+      'JADWAL SUMATIF AKHIR SEMESTER (SAS) TERINTEGRASI KELAS X, XI, DAN XII (TP ' +
+      (schoolInfo.academicYear || '2026/2027') + ')'
+    ]));
+    rows.push(padRow([
+      'Sinkronisasi Terakhir: ' + Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd-MM-yyyy HH:mm:ss') + ' WIB | Terverifikasi 0% Bentrok'
+    ]));
+    rows.push(padRow([]));
+
     rows.push(header);
 
     slots.forEach((slot, idx) => {
@@ -266,17 +279,16 @@ function doPost(e) {
       ALL_CLASSES.forEach(cls => {
         const entry = slot.entries && slot.entries[cls];
         if (entry && entry.subject) {
-          row.push(entry.subject + '\\n(' + (entry.teacher || '') + ')');
+          row.push(entry.subject + '\n(' + (entry.teacher || '') + ')');
         } else {
           row.push('-');
         }
       });
 
-      rows.push(row);
+      rows.push(padRow(row));
     });
 
     const numRows = rows.length;
-    const numCols = header.length;
     sheet.getRange(1, 1, numRows, numCols).setValues(rows);
 
     sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
@@ -310,9 +322,14 @@ function doPost(e) {
       writeTokenSheet(ss, payload.tokenData);
     }
 
+    // 3. Tulis Sheet Konfigurasi & Tanda Tangan Sekolah jika disertakan
+    if (payload.schoolInfo) {
+      writeSchoolConfigSheet(ss, payload.schoolInfo);
+    }
+
     return createJsonResponse({
       status: 'success',
-      message: 'Berhasil menyinkronkan ' + slots.length + ' slot jadwal & token akses ke Google Sheets!',
+      message: 'Berhasil menyinkronkan ' + slots.length + ' slot jadwal & data pengesahan ke Google Sheets!',
       updatedSlots: slots.length,
       timestamp: new Date().toISOString()
     });
@@ -323,6 +340,59 @@ function doPost(e) {
       message: err.toString()
     });
   }
+}
+
+/**
+ * Helper menulis konfigurasi & tanda tangan digital ke sheet Konfigurasi_Sekolah
+ */
+function writeSchoolConfigSheet(ss, schoolInfo) {
+  let configSheet = ss.getSheetByName('Konfigurasi_Sekolah');
+  if (!configSheet) {
+    configSheet = ss.insertSheet('Konfigurasi_Sekolah');
+  }
+  configSheet.clear();
+
+  const rows = [
+    ['Kunci Parameter', 'Nilai Konfigurasi', 'Deskripsi'],
+    ['name', schoolInfo.name || 'SMA NEGERI 2 KOTA PASURUAN', 'Nama Sekolah'],
+    ['academicYear', schoolInfo.academicYear || '2026/2027', 'Tahun Pelajaran'],
+    ['semester', schoolInfo.semester || 'Semester Ganjil', 'Semester'],
+    ['headmasterTitle', schoolInfo.headmasterTitle || 'Kepala SMA Negeri 2 Pasuruan', 'Jabatan Kepala Sekolah'],
+    ['headmasterName', schoolInfo.headmasterName || 'Trisnurini Tantrianingrum, S.Pd, M.M', 'Nama Kepala Sekolah'],
+    ['headmasterNip', schoolInfo.headmasterNip || '19670224 199003 2 001', 'NIP Kepala Sekolah'],
+    ['headmasterSignatureImage', schoolInfo.headmasterSignatureImage || '', 'TTD Digital Kepala Sekolah'],
+    ['committeeTitle', schoolInfo.committeeTitle || 'Ketua Panitia SAS 2026/2027', 'Jabatan Ketua Panitia'],
+    ['committeeName', schoolInfo.committeeName || 'AJIANSYAH AKBAR, S.Sos', 'Nama Ketua Panitia'],
+    ['committeeNip', schoolInfo.committeeNip || '19840210 200904 1 002', 'NIP Ketua Panitia'],
+    ['committeeSignatureImage', schoolInfo.committeeSignatureImage || '', 'TTD Digital Ketua Panitia'],
+    ['signPlaceAndDate', schoolInfo.signPlaceAndDate || 'Pasuruan, 23 November 2026', 'Tempat & Tanggal Pengesahan'],
+  ];
+
+  configSheet.getRange(1, 1, rows.length, 3).setValues(rows);
+  configSheet.getRange(1, 1, 1, 3).setBackground('#1e3a8a').setFontColor('#ffffff').setFontWeight('bold');
+  configSheet.setColumnWidth(1, 180);
+  configSheet.setColumnWidth(2, 350);
+  configSheet.setColumnWidth(3, 250);
+}
+
+/**
+ * Helper membaca data konfigurasi sekolah dari sheet Konfigurasi_Sekolah
+ */
+function readSchoolConfigSheet(ss) {
+  const configSheet = ss.getSheetByName('Konfigurasi_Sekolah');
+  if (!configSheet) return null;
+  const values = configSheet.getDataRange().getValues();
+  if (!values || values.length < 2) return null;
+
+  const config = {};
+  for (let i = 1; i < values.length; i++) {
+    const key = String(values[i][0] || '').trim();
+    const val = values[i][1];
+    if (key) {
+      config[key] = val;
+    }
+  }
+  return config;
 }
 
 /**

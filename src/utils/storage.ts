@@ -21,7 +21,7 @@ const STORAGE_KEY_AUTH_SESSION = 'sman2_sas_active_auth_v1';
 export const DEFAULT_ADMINS: AdminAccount[] = [
   {
     id: 'admin-super',
-    name: 'Dr. H. Purwanto, M.Pd',
+    name: 'Trisnurini Tantrianingrum, S.Pd, M.M',
     username: 'superadmin',
     pin: 'admin123',
     roleTitle: 'Super Admin / Kepala Sekolah',
@@ -30,7 +30,7 @@ export const DEFAULT_ADMINS: AdminAccount[] = [
   },
   {
     id: 'admin-panitia',
-    name: 'Mohamad Hadi Sukron, S.Pd',
+    name: 'AJIANSYAH AKBAR, S.Sos',
     username: 'panitia',
     pin: 'panitia2026',
     roleTitle: 'Ketua Panitia SAS 2026/2027',
@@ -102,10 +102,28 @@ export function getStoredSchoolInfo(): SchoolInfo {
     }
 
     const parsed = JSON.parse(raw);
-    const merged = { ...DEFAULT_SCHOOL_INFO, ...parsed };
+    const merged: SchoolInfo = { ...DEFAULT_SCHOOL_INFO, ...parsed };
 
-    // If localStorage has empty or missing webAppUrl, populate from bundled fallback
-    if ((!merged.googleSync?.webAppUrl || merged.googleSync.webAppUrl.trim() === '') && fallbackUrl) {
+    // Smart migration for official school officers & digital signatures
+    if (!merged.headmasterName || merged.headmasterName === 'Drs. H. Ahmad Fauzi, M.Pd.') {
+      merged.headmasterName = DEFAULT_SCHOOL_INFO.headmasterName;
+      merged.headmasterNip = DEFAULT_SCHOOL_INFO.headmasterNip;
+    }
+    if (!merged.headmasterSignatureImage && DEFAULT_SCHOOL_INFO.headmasterSignatureImage) {
+      merged.headmasterSignatureImage = DEFAULT_SCHOOL_INFO.headmasterSignatureImage;
+    }
+
+    if (!merged.committeeName || merged.committeeName === 'Didik Suryadi, S.Pd.') {
+      merged.committeeName = DEFAULT_SCHOOL_INFO.committeeName;
+      merged.committeeNip = DEFAULT_SCHOOL_INFO.committeeNip;
+    }
+    if (!merged.committeeSignatureImage && DEFAULT_SCHOOL_INFO.committeeSignatureImage) {
+      merged.committeeSignatureImage = DEFAULT_SCHOOL_INFO.committeeSignatureImage;
+    }
+
+    // If localStorage has empty, missing, or old placeholder webAppUrl, populate from active fallback
+    const isOldPlaceholderUrl = merged.googleSync?.webAppUrl?.includes('AKfycbwH_rv-76X15KJYlzPSWjo2F5zVrVVA4hK7K06ItYOPdEijEbYOHMVETpz8htQZ_JoDig');
+    if ((!merged.googleSync?.webAppUrl || merged.googleSync.webAppUrl.trim() === '' || isOldPlaceholderUrl) && fallbackUrl) {
       merged.googleSync = {
         ...merged.googleSync,
         webAppUrl: fallbackUrl,
@@ -184,7 +202,15 @@ export function getAdminAccounts(): AdminAccount[] {
     if (!raw) return DEFAULT_ADMINS;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      return parsed.map((a: AdminAccount) => {
+        if (a.id === 'admin-panitia' || a.name === 'Mohamad Hadi Sukron, S.Pd' || a.name === 'Didik Suryadi, S.Pd.') {
+          return { ...a, name: 'AJIANSYAH AKBAR, S.Sos', roleTitle: 'Ketua Panitia SAS 2026/2027' };
+        }
+        if (a.id === 'admin-super' || a.name === 'Dr. H. Purwanto, M.Pd' || a.name === 'Drs. H. Ahmad Fauzi, M.Pd.') {
+          return { ...a, name: 'Trisnurini Tantrianingrum, S.Pd, M.M', roleTitle: 'Kepala SMA Negeri 2 Pasuruan' };
+        }
+        return a;
+      });
     }
     return DEFAULT_ADMINS;
   } catch {

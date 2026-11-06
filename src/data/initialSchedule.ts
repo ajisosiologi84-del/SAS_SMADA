@@ -1,4 +1,5 @@
 import { ScheduleSlot, SchoolInfo } from '../types/schedule';
+import signatures from './signatures.json';
 
 export const DEFAULT_SCHOOL_INFO: SchoolInfo = {
   name: 'SMA NEGERI 2 KOTA PASURUAN',
@@ -13,14 +14,14 @@ export const DEFAULT_SCHOOL_INFO: SchoolInfo = {
   curriculum: 'Kurikulum Merdeka',
   signPlaceAndDate: 'Pasuruan, 23 November 2026',
   headmasterTitle: 'Kepala SMA Negeri 2 Pasuruan',
-  headmasterName: 'Drs. H. Ahmad Fauzi, M.Pd.',
-  headmasterNip: '19680512 199303 1 005',
-  headmasterSignatureImage: '',
+  headmasterName: 'Trisnurini Tantrianingrum, S.Pd, M.M',
+  headmasterNip: '19670224 199003 2 001',
+  headmasterSignatureImage: signatures.headmasterSignatureImage || '',
   headmasterStampImage: '',
   committeeTitle: 'Ketua Panitia SAS 2026/2027',
-  committeeName: 'Didik Suryadi, S.Pd.',
-  committeeNip: '19750820 200212 1 004',
-  committeeSignatureImage: '',
+  committeeName: 'AJIANSYAH AKBAR, S.Sos',
+  committeeNip: '19840210 200904 1 002',
+  committeeSignatureImage: signatures.committeeSignatureImage || '',
   schoolLogoImage: '',
   schoolRightBadgeText: 'SMADA PASURUAN',
   examRules: [
@@ -42,13 +43,13 @@ export const DEFAULT_SCHOOL_INFO: SchoolInfo = {
     fridaySession2: '09.00 - 11.00 WIB',
   },
   googleSync: {
-    webAppUrl: 'https://script.google.com/macros/s/AKfycbwH_rv-76X15KJYlzPSWjo2F5zVrVVA4hK7K06ItYOPdEijEbYOHMVETpz8htQZ_JoDig/exec',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbwMSnZP2rQdireo5jHzbXExCroRsdXp4JvCY8gxBgxePSDwVcRpW9u6lQkSdb8BiRFj/exec',
     sheetName: 'Jadwal_SAS_SMAN2',
     lastSyncedAt: '',
   },
 };
 
-export const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwH_rv-76X15KJYlzPSWjo2F5zVrVVA4hK7K06ItYOPdEijEbYOHMVETpz8htQZ_JoDig/exec';
+export const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMSnZP2rQdireo5jHzbXExCroRsdXp4JvCY8gxBgxePSDwVcRpW9u6lQkSdb8BiRFj/exec';
 
 export const INITIAL_SCHEDULE_SLOTS: ScheduleSlot[] = [
   {

@@ -3,10 +3,10 @@ import fs from 'fs';
 import path from 'path';
 
 let inMemoryConfig = {
-  webAppUrl: '',
+  webAppUrl: 'https://script.google.com/macros/s/AKfycbwMSnZP2rQdireo5jHzbXExCroRsdXp4JvCY8gxBgxePSDwVcRpW9u6lQkSdb8BiRFj/exec',
   sheetName: 'Jadwal_SAS_SMAN2',
-  lastSyncedAt: '',
-  updatedAt: '',
+  lastSyncedAt: '06/11/2026, 09.11.45',
+  updatedAt: '2026-11-06T02:11:45.000Z',
 };
 
 export default function handler(req, res) {
