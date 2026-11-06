@@ -2165,6 +2165,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     isOpen: true,
                     target: 'all-classes',
                   })}
+                  className="px-3.5 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs ring-1 ring-indigo-400"
+                  title="Download All Cards: Hasilkan dan unduh satu berkas PDF lengkap untuk seluruh 30 kelas"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-200" />
+                  <span>Download All Cards</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTokenCardModal({
+                    isOpen: true,
+                    target: 'all-classes',
+                  })}
                   className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs"
                   title="Cetak lembar kartu token untuk semua 30 kelas (format siap gunting)"
                 >

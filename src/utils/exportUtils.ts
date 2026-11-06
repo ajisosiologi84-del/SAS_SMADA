@@ -265,24 +265,36 @@ export async function downloadElementAsPDF(
 
     let renderWidth = maxPrintWidth;
     let renderHeight = renderWidth / imgRatio;
-
-    // If slightly taller than available page height, scale down to fit cleanly on 1 page
-    if (renderHeight > maxPrintHeight && renderHeight <= maxPrintHeight * 1.15) {
-      renderHeight = maxPrintHeight;
-      renderWidth = renderHeight * imgRatio;
-    }
-
     const posX = (pdfWidth - renderWidth) / 2;
 
-    // Balanced vertical positioning:
-    // If it takes up less than 88% of page height (e.g. F4 which has 330mm),
-    // position it aesthetically with balanced upper-center margin
-    let posY = marginY;
-    if (renderHeight < maxPrintHeight * 0.88) {
-      posY = Math.max(marginY, (pdfHeight - renderHeight) / 3);
+    // Check if content fits in 1 page (up to 20% overflow can be scaled down seamlessly)
+    if (renderHeight <= maxPrintHeight * 1.25) {
+      if (renderHeight > maxPrintHeight) {
+        renderHeight = maxPrintHeight;
+        renderWidth = renderHeight * imgRatio;
+      }
+      const adjustedPosX = (pdfWidth - renderWidth) / 2;
+      let posY = marginY;
+      if (renderHeight < maxPrintHeight * 0.9) {
+        posY = Math.max(marginY, (pdfHeight - renderHeight) / 3);
+      }
+      pdf.addImage(imgData, 'PNG', adjustedPosX, posY, renderWidth, renderHeight, undefined, 'FAST');
+    } else {
+      // True multi-page document: slice across multiple pages cleanly
+      let remainingHeight = renderHeight;
+      let positionY = marginY;
+
+      pdf.addImage(imgData, 'PNG', posX, positionY, renderWidth, renderHeight, undefined, 'FAST');
+      remainingHeight -= maxPrintHeight;
+
+      while (remainingHeight > 0) {
+        pdf.addPage(format, orientation);
+        positionY -= maxPrintHeight;
+        pdf.addImage(imgData, 'PNG', posX, positionY, renderWidth, renderHeight, undefined, 'FAST');
+        remainingHeight -= maxPrintHeight;
+      }
     }
 
-    pdf.addImage(imgData, 'PNG', posX, posY, renderWidth, renderHeight, undefined, 'FAST');
     pdf.save(`${filename}_${paperSize.toUpperCase()}.pdf`);
     return true;
   } catch (err) {
@@ -294,6 +306,180 @@ export async function downloadElementAsPDF(
     }
   }
 }
+
+export interface MultiPageProgress {
+  current: number;
+  total: number;
+  percent: number;
+}
+
+/**
+ * Downloads multiple card sheets as a clean, unified, multi-page PDF document.
+ * Each sheet is exactly 1 page (A4 / F4) with crystal-clear 2x resolution.
+ */
+export async function downloadTokenCardsAsMultiPagePDF(
+  sheetElements: HTMLElement[],
+  filename: string,
+  paperSize: PaperSize = 'f4',
+  onProgress?: (progress: MultiPageProgress) => void
+): Promise<boolean> {
+  if (!sheetElements || sheetElements.length === 0) return false;
+
+  try {
+    const format: string | [number, number] = paperSize === 'f4' ? [215, 330] : 'a4';
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format,
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    // Standard margins (8mm for A4, 10mm for F4)
+    const marginX = paperSize === 'f4' ? 9 : 8;
+    const marginY = paperSize === 'f4' ? 10 : 8;
+    const maxPrintWidth = pdfWidth - marginX * 2;
+    const maxPrintHeight = pdfHeight - marginY * 2;
+
+    const total = sheetElements.length;
+
+    for (let i = 0; i < total; i++) {
+      const sheet = sheetElements[i];
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total,
+          percent: Math.round(((i + 1) / total) * 100),
+        });
+      }
+
+      if (i > 0) {
+        pdf.addPage(format, 'portrait');
+      }
+
+      // Render sheet image at high resolution
+      const imgData = await toPng(sheet, {
+        quality: 0.98,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        filter: (node: HTMLElement) => {
+          if (node.classList && (node.classList.contains('no-export') || node.classList.contains('no-print'))) {
+            return false;
+          }
+          return true;
+        },
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgRatio = imgProps.width / imgProps.height;
+
+      let renderWidth = maxPrintWidth;
+      let renderHeight = renderWidth / imgRatio;
+
+      if (renderHeight > maxPrintHeight) {
+        renderHeight = maxPrintHeight;
+        renderWidth = renderHeight * imgRatio;
+      }
+
+      const posX = (pdfWidth - renderWidth) / 2;
+      const posY = Math.max(marginY, (pdfHeight - renderHeight) / 2);
+
+      pdf.addImage(imgData, 'PNG', posX, posY, renderWidth, renderHeight, undefined, 'FAST');
+    }
+
+    pdf.save(`${filename}_${paperSize.toUpperCase()}.pdf`);
+    return true;
+  } catch (err) {
+    console.error('Failed generating multi-page card PDF:', err);
+    return false;
+  }
+}
+
+/**
+ * Generates a single, combined PDF file for all class schedule cards in one go
+ * by iterating through the class list and using the print-styling to append them as pages.
+ */
+export async function downloadAllClassSchedulesCombinedPDF(
+  sheetElements: { className: string; element: HTMLElement }[],
+  filename: string,
+  paperSize: PaperSize = 'f4',
+  onProgress?: (progress: MultiPageProgress & { className?: string }) => void
+): Promise<boolean> {
+  if (!sheetElements || sheetElements.length === 0) return false;
+
+  try {
+    const format: string | [number, number] = paperSize === 'f4' ? [215, 330] : 'a4';
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format,
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    // Standard margins (8mm for A4, 10mm for F4)
+    const marginX = paperSize === 'f4' ? 10 : 8;
+    const marginY = paperSize === 'f4' ? 10 : 8;
+    const maxPrintWidth = pdfWidth - marginX * 2;
+    const maxPrintHeight = pdfHeight - marginY * 2;
+
+    const total = sheetElements.length;
+
+    for (let i = 0; i < total; i++) {
+      const { className, element } = sheetElements[i];
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total,
+          percent: Math.round(((i + 1) / total) * 100),
+          className,
+        });
+      }
+
+      if (i > 0) {
+        pdf.addPage(format, 'portrait');
+      }
+
+      // Render element image at high quality
+      const imgData = await toPng(element, {
+        quality: 0.98,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        filter: (node: HTMLElement) => {
+          if (node.classList && (node.classList.contains('no-export') || node.classList.contains('no-print'))) {
+            return false;
+          }
+          return true;
+        },
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgRatio = imgProps.width / imgProps.height;
+
+      let renderWidth = maxPrintWidth;
+      let renderHeight = renderWidth / imgRatio;
+
+      if (renderHeight > maxPrintHeight) {
+        renderHeight = maxPrintHeight;
+        renderWidth = renderHeight * imgRatio;
+      }
+
+      const posX = (pdfWidth - renderWidth) / 2;
+      const posY = Math.max(marginY, (pdfHeight - renderHeight) / 2);
+
+      pdf.addImage(imgData, 'PNG', posX, posY, renderWidth, renderHeight, undefined, 'FAST');
+    }
+
+    pdf.save(`${filename}_${paperSize.toUpperCase()}.pdf`);
+    return true;
+  } catch (err) {
+    console.error('Failed generating combined class schedules PDF:', err);
+    return false;
+  }
+}
+
 
 export function triggerPrintWithPaperSize(
   elementId: string,
